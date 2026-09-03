@@ -47,5 +47,20 @@ First public release. Built and verified against Windows 11 Pro build 26100.
   it will touch first and prints the restore command.
 - No handler is blocked by default. Blocking is opt-in per catalog id.
 
+### Known limitations
+
+- **8 of the 24 catalog entries are unverified.** `peazip`, `gdrive`,
+  `nextcloud`, `tortoisegit`, `tortoisesvn`, `ccleaner`, `winmerge` and
+  `teracopy` carry `Verified = ''`, meaning their DLL names have not been
+  confirmed against a machine that actually has the software. If one of them
+  resolves to nothing in `-List` on a machine where the software is installed,
+  the names are wrong; a corrected entry is a welcome PR.
+- The COM interface layout is verified at runtime rather than assumed, but it
+  has only been *observed* on build 26100. On a build where validation fails,
+  `Set-SearchScope.ps1` refuses to mutate and stays read-only, by design.
+- Search scope changes cannot be undone by a registry import, because the scope
+  lives in the WSearch service. Undo is Indexing Options, or re-running with an
+  edited config.
+
 [Unreleased]: https://github.com/v2matosevic/ExplorerTune/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/v2matosevic/ExplorerTune/releases/tag/v0.1.0
