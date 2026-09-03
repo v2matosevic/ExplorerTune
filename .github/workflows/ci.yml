@@ -14,7 +14,7 @@ jobs:
     name: Parse + PSScriptAnalyzer
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Parse every script
         shell: pwsh
@@ -79,7 +79,7 @@ jobs:
     name: No machine-specific data
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Nothing machine-specific is tracked
         shell: bash
