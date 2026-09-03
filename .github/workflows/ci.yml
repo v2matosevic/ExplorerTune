@@ -80,24 +80,58 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Scan tracked files
+
+      - name: Nothing machine-specific is tracked
+        shell: bash
         run: |
-          set -e
           fail=0
-          # A committed config file would leak the author's folder layout.
-          if git ls-files --error-unmatch explorertune.config.psd1 >/dev/null 2>&1; then
-            echo "::error::explorertune.config.psd1 is tracked; it must stay gitignored"
-            fail=1
-          fi
-          for pat in 'C:\Users\[a-z]' 'S-1-5-21-[0-9]' 'backups/'; do
-            if git ls-files -z | xargs -0 grep -nIE "$pat" -- ':!docs/*' ':!*.md' 2>/dev/null | grep -v 'USERPROFILE' | head -5; then
-              echo "::error::pattern '$pat' found in a tracked script"
-              fail=1
+
+          note() { echo "::error::$1"; fail=1; }
+
+          # git grep is used throughout rather than `grep`, because only git
+          # understands :(exclude) pathspecs and only git limits the search to
+          # TRACKED files. A plain grep with a git pathspec silently errors out
+          # and checks nothing, which is worse than no check at all.
+          #
+          # This workflow is excluded from the content scans: it necessarily
+          # contains the patterns it is looking for.
+          EX=(':(exclude).github/workflows/*')
+
+          # 1. Files that must never be tracked at all.
+          for f in explorertune.config.psd1; do
+            if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+              note "$f is tracked; it must stay gitignored"
             fi
           done
-          # Full volume GUIDs are machine identifiers.
-          if git ls-files -z | xargs -0 grep -nIE '\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?' -- ':!*.md' | grep -vE 'AB310581|7D096C5F|E6FB5E20' | head -5; then
-            echo "::error::an unexplained GUID is committed; known COM CLSIDs/IIDs are allowlisted"
-            fail=1
+          for d in backups logs; do
+            if [ -n "$(git ls-files "$d/")" ]; then
+              note "$d/ has tracked files; it must stay gitignored"
+            fi
+          done
+
+          # 2. A concrete user profile path. %USERPROFILE% and $env:USERPROFILE
+          #    are the portable forms and are expected.
+          # '.' matches the path separator, which avoids backslash escaping that
+          # breaks differently in every shell layer between here and git.
+          if git grep -nIE 'C:.Users.[A-Za-z0-9._-]+' -- "${EX[@]}" ':(exclude)*.md' | grep -v 'USERPROFILE'; then
+            note "a literal user profile path is committed; use %USERPROFILE%"
           fi
+
+          # 3. A user or group SID.
+          if git grep -nIE 'S-1-5-21-[0-9]' -- "${EX[@]}"; then
+            note "a SID is committed"
+          fi
+
+          # 4. Full GUIDs. Documented COM CLSIDs/IIDs are the only ones that
+          #    belong in the tree; a volume GUID identifies a machine.
+          if git grep -nIE '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}' -- "${EX[@]}"                | grep -viE 'AB310581-AC80-11D1-8DF3-00C04FB6|7D096C5F-AC08-4F1F-BEB7-5C22C517CE39|E6FB5E20-DE35-11CF-9C87-00AA005127ED'; then
+            note "an unexplained GUID is committed; only documented COM ids are allowlisted"
+          fi
+
+          # 5. The machine this was developed on.
+          if git grep -nIEi 'rayzen' -- "${EX[@]}"; then
+            note "a hostname is committed"
+          fi
+
+          if [ "$fail" = "0" ]; then echo "clean"; fi
           exit $fail
