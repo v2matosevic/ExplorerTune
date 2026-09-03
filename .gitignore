@@ -1,0 +1,22 @@
+# Your machine's configuration. Never commit this: it contains your folder
+# layout, and on some machines that is enough to identify you.
+explorertune.config.psd1
+
+# Registry exports taken before each change. These contain your installed
+# software, usernames and volume identifiers.
+backups/
+
+# Watchdog history and run logs.
+logs/
+
+# Audit output. Contains your username, drive layout and installed software.
+*.audit.txt
+before.txt
+after.txt
+
+# Editors / OS
+.vs/
+.vscode/
+*.swp
+Thumbs.db
+desktop.ini

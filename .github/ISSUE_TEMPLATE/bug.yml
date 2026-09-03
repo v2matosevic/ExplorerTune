@@ -1,0 +1,42 @@
+name: Bug report
+description: Something behaved differently than documented
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, what you got.
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Windows build
+      description: "(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion').CurrentBuild"
+      placeholder: "26100"
+    validations:
+      required: true
+  - type: input
+    id: psversion
+    attributes:
+      label: PowerShell version
+      description: $PSVersionTable.PSVersion
+      placeholder: 7.6.5
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: |
+        Paste the console output. Read it first — audit output contains your
+        username, drive layout and installed software.
+      render: text
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: If this is about search scope
+      options:
+        - label: I checked with `.\Set-SearchScope.ps1 -Test '<path>'` rather than by reading the registry
+        - label: I checked `-Status`, and the catalog is not still mid-crawl

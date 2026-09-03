@@ -1,0 +1,61 @@
+name: Add a shell extension to the catalog
+description: Something loads inside explorer.exe on your machine that the catalog does not know about
+title: "catalog: <software name>"
+labels: [catalog]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The catalog is the part of this project that gets better with more
+        people. A PR is even more welcome than an issue — see
+        [CONTRIBUTING.md](../blob/main/CONTRIBUTING.md).
+  - type: input
+    id: software
+    attributes:
+      label: Software
+      placeholder: SomeVendor Toolbar 4.2
+    validations:
+      required: true
+  - type: input
+    id: dll
+    attributes:
+      label: DLL file name(s)
+      description: Names only, never paths. Include the 32-bit name too if there is one.
+      placeholder: svshell64.dll, svshell.dll
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      options: [contextmenu, overlay, property, thumbnail, copyhook, mixed, "not sure"]
+    validations:
+      required: true
+  - type: input
+    id: cost
+    attributes:
+      label: When does it run?
+      description: The most useful field. "right-click on files" and "every time you look at a folder" are very different costs.
+      placeholder: right-click on files and folders
+    validations:
+      required: true
+  - type: textarea
+    id: note
+    attributes:
+      label: What breaks if someone blocks it?
+      description: Somebody will read this and then block the thing. Write it for them.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Audit output
+      description: |
+        The SHELL EXTENSIONS and THIRD-PARTY DLLs sections of `.\Audit-Explorer.ps1`.
+        Read it before pasting — it contains your username, drive layout and installed software.
+      render: text
+  - type: input
+    id: build
+    attributes:
+      label: Windows build
+      placeholder: "26100"

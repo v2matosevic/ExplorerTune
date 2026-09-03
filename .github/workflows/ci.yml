@@ -1,0 +1,103 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyse:
+    name: Parse + PSScriptAnalyzer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse every script
+        shell: pwsh
+        run: |
+          $bad = 0
+          Get-ChildItem -Recurse -Include *.ps1, *.psd1 | ForEach-Object {
+              $errs = $null
+              $null = [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$null, [ref]$errs)
+              if ($errs.Count) {
+                  $bad++
+                  Write-Host "::error file=$($_.FullName)::parse errors"
+                  $errs | ForEach-Object { Write-Host "  line $($_.Extent.StartLineNumber): $($_.Message)" }
+              }
+              else { Write-Host "ok  $($_.Name)" }
+          }
+          if ($bad) { throw "$bad file(s) failed to parse" }
+
+      - name: Config and catalog load
+        shell: pwsh
+        run: |
+          . .\lib\Config.ps1
+          $cfg = Get-ETConfig
+          if (-not $cfg.Search.NoiseDirs) { throw 'config did not load' }
+          $cat = Get-ETHandlerCatalog
+          if ($cat.Count -lt 1) { throw 'catalog did not load' }
+          Write-Host "config ok, $($cat.Count) catalog entries"
+
+          # Catalog hygiene: unique ids, required fields present.
+          $ids = @($cat | ForEach-Object { $_.Id })
+          $dupes = @($ids | Group-Object | Where-Object Count -gt 1 | ForEach-Object Name)
+          if ($dupes) { throw "duplicate catalog id(s): $($dupes -join ', ')" }
+          foreach ($h in $cat) {
+              foreach ($f in 'Id', 'Label', 'Kind', 'Cost') {
+                  if (-not $h.$f) { throw "catalog entry '$($h.Id)' is missing $f" }
+              }
+              if ($h.Dll -and ($h.Dll | Where-Object { $_ -match '[\/]' })) {
+                  throw "catalog entry '$($h.Id)' has a path in Dll; use file names only"
+              }
+          }
+          Write-Host 'catalog hygiene ok'
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser -SkipPublisherCheck
+          $r = Invoke-ScriptAnalyzer -Path . -Recurse -Settings .\PSScriptAnalyzerSettings.psd1
+          $r | Format-Table -AutoSize | Out-String -Width 200 | Write-Host
+          $blocking = @($r | Where-Object Severity -in 'Error', 'Warning')
+          if ($blocking.Count) { throw "$($blocking.Count) analyser error(s)/warning(s)" }
+
+      - name: Dry runs must not write
+        shell: pwsh
+        run: |
+          # A bare invocation must change nothing. If a backups/ directory
+          # appears, something wrote without -Apply and that is a release blocker.
+          .\Optimize-Explorer.ps1 -List
+          .\Optimize-Explorer.ps1
+          if (Test-Path .\backups) { throw 'a dry run created backups/ - it wrote something' }
+          Write-Host 'dry runs are clean'
+
+  no-secrets:
+    name: No machine-specific data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan tracked files
+        run: |
+          set -e
+          fail=0
+          # A committed config file would leak the author's folder layout.
+          if git ls-files --error-unmatch explorertune.config.psd1 >/dev/null 2>&1; then
+            echo "::error::explorertune.config.psd1 is tracked; it must stay gitignored"
+            fail=1
+          fi
+          for pat in 'C:\Users\[a-z]' 'S-1-5-21-[0-9]' 'backups/'; do
+            if git ls-files -z | xargs -0 grep -nIE "$pat" -- ':!docs/*' ':!*.md' 2>/dev/null | grep -v 'USERPROFILE' | head -5; then
+              echo "::error::pattern '$pat' found in a tracked script"
+              fail=1
+            fi
+          done
+          # Full volume GUIDs are machine identifiers.
+          if git ls-files -z | xargs -0 grep -nIE '\{?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\}?' -- ':!*.md' | grep -vE 'AB310581|7D096C5F|E6FB5E20' | head -5; then
+            echo "::error::an unexplained GUID is committed; known COM CLSIDs/IIDs are allowlisted"
+            fail=1
+          fi
+          exit $fail
